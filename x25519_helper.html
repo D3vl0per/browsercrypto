@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X25519</title>
+</head>
+<body>
+    <h1>Key Exchange</h1>
+    <form id="keyForm">
+        <label for="pk">Public Key (JWK):</label><br>
+        <textarea id="pk" name="pk" rows="5" cols="50" placeholder="Enter Public Key JWK"></textarea><br><br>
+
+        <label for="sk">Private Key (JWK):</label><br>
+        <textarea id="sk" name="sk" rows="5" cols="50" placeholder="Enter Private Key JWK"></textarea><br><br>
+
+        <button type="button" id="deriveKeyButton">Derive Shared Key</button>
+    </form>
+
+    <h2>Shared Key:</h2>
+    <p id="sharedKey">[Shared key will be displayed here]</p>
+    <h2>Shared Key (Hex):</h2>
+    <p id="sharedKeyHex">[Shared key (Hex) will be displayed here]</p>
+
+<script>
+    document.getElementById("deriveKeyButton").addEventListener("click", async () => {
+        const pkInput = document.getElementById("pk").value;
+        const skInput = document.getElementById("sk").value;
+
+        if (!pkInput || !skInput) {
+            alert("Please provide both Public Key and Private Key JWKs.");
+            return;
+        }
+
+        try {
+
+
+            const importedPk = await crypto.subtle.importKey(
+                "jwk",
+                JSON.parse(pkInput),
+                {
+                    name: "X25519",
+                },
+                true,
+                []
+            );
+
+
+            const importedSk = await crypto.subtle.importKey(
+                "jwk",
+                JSON.parse(skInput),
+                {
+                    name: "X25519",
+                },
+                true,
+                ["deriveKey"]
+            );
+
+            const sharedKey = await crypto.subtle.deriveKey(
+                {
+                    name: "X25519",
+                    public: importedPk
+                },
+                importedSk,
+                {
+                    name: "AES-GCM",
+                    length: 256
+                },
+                true,
+                ["encrypt", "decrypt"]
+            );
+
+            expKey = await crypto.subtle.exportKey("raw", sharedKey)
+            expKeyHex = abth(expKey)
+
+            document.getElementById("sharedKey").textContent = expKey;
+            document.getElementById("sharedKeyHex").textContent = expKeyHex;
+            console.log(expKey);
+            console.log(expKeyHex);
+
+        console.log();
+        } catch (error) {
+            console.error(error);
+        }
+
+    });
+
+
+    function abth(b) {const ba = new Uint8Array(b);return Array.from(ba).map(byte => byte.toString(16).padStart(2, '0')).join('');}
+</script>    
+</body>
+</html>

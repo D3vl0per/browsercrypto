@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JWKS Key Generation</title>
+</head>
+<body>
+    <h1>Key Generation and Export</h1>
+    <div id="keyContainers"></div>
+    <br>
+    <h2>Key Derivation</h2>
+    <div id="keyDerivation"></div>
+    <br>
+
+
+    <script>
+        const keyConfigs = [
+            {
+                algorithm: { name: "RSA-OAEP", modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+                usages: ["encrypt", "decrypt"],
+                id: "rsa256",
+                label: "RSA-OAEP-256"
+            },
+            {
+                algorithm: { name: "RSA-OAEP", modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+                usages: ["encrypt", "decrypt"],
+                id: "rsa384",
+                label: "RSA-OAEP-384"
+            },
+            {
+                algorithm: { name: "RSA-OAEP", modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+                usages: ["encrypt", "decrypt"],
+                id: "rsa384",
+                label: "RSA-OAEP-512"
+            },
+            {
+                algorithm: { name: "ECDSA", namedCurve: "P-256" },
+                usages: ["sign", "verify"],
+                id: "ecdsa256",
+                label: "ECDSA-256"
+            },
+            {
+                algorithm: { name: "ECDSA", namedCurve: "P-384" },
+                usages: ["sign", "verify"],
+                id: "ecdsa384",
+                label: "ECDSA-384"
+            },
+            {
+                algorithm: { name: "ECDSA", namedCurve: "P-521" },
+                usages: ["sign", "verify"],
+                id: "ecdsa521",
+                label: "ECDSA-521"
+            },
+            {
+                algorithm: { name: "X25519" },
+                usages: ["deriveKey", "deriveBits"],
+                id: "x25519",
+                label: "X25519"
+            }
+        ];
+
+        async function generateAndDisplayKeys(config) {
+            const { algorithm, usages, id, label } = config;
+            const keyPair = await crypto.subtle.generateKey(algorithm, true, usages);
+            const exportedKeys = await exportKey(keyPair);
+            const container = document.createElement("div");
+            container.innerHTML = `
+                <h2>${label}</h2>
+                <h3>Public Key</h3>
+                <label>JWK:</label><br>
+                <textarea rows="5" cols="150" readonly>${exportedKeys.publicKey.jwk ? JSON.stringify(exportedKeys.publicKey.jwk, null, 2) : "N/A"}</textarea><br>
+                <label>SPKI (Base64):</label><br>
+                <textarea rows="5" cols="150" readonly>${exportedKeys.publicKey.spki || "N/A"}</textarea><br>
+                <label>Raw (Base64):</label><br>
+                <textarea rows="5" cols="150" readonly>${exportedKeys.publicKey.raw || "N/A"}</textarea><br>
+
+                <h3>Private Key</h3>
+                <label>JWK:</label><br>
+                <textarea rows="5" cols="150" readonly>${exportedKeys.privateKey.jwk ? JSON.stringify(exportedKeys.privateKey.jwk, null, 2) : "N/A"}</textarea><br>
+                <label>PKCS8 (Base64):</label><br>
+                <textarea rows="5" cols="150" readonly>${exportedKeys.privateKey.pkcs8 || "N/A"}</textarea><br>
+                <label>Raw (Base64):</label><br>
+                <textarea rows="5" cols="150" readonly>${exportedKeys.privateKey.raw || "N/A"}</textarea><br>
+            `;
+            document.getElementById("keyContainers").appendChild(container);
+        }
+
+        async function exportKey(keyPair) {
+            const exportedKey = {
+                publicKey: {
+                    raw: null,
+                    spki: null,
+                    jwk: null
+                },
+                privateKey: {
+                    raw: null,
+                    pkcs8: null,
+                    jwk: null
+                }
+            };
+            try {
+                exportedKey.publicKey.raw = keyPair.publicKey
+                    ? btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("raw", keyPair.publicKey))))
+                    : null;
+            } catch (e) {
+                console.warn("Public key does not support 'raw' export:", e);
+            }
+
+            try {
+                exportedKey.publicKey.spki = keyPair.publicKey
+                    ? btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("spki", keyPair.publicKey))))
+                    : null;
+            } catch (e) {
+                console.warn("Public key does not support 'spki' export:", e);
+            }
+
+            try {
+                exportedKey.publicKey.jwk = keyPair.publicKey
+                    ? await crypto.subtle.exportKey("jwk", keyPair.publicKey)
+                    : null;
+            } catch (e) {
+                console.warn("Public key does not support 'jwk' export:", e);
+            }
+
+            try {
+                exportedKey.privateKey.raw = keyPair.privateKey
+                    ? btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("raw", keyPair.privateKey))))
+                    : null;
+            } catch (e) {
+                console.warn("Private key does not support 'raw' export:", e);
+            }
+
+            try {
+                exportedKey.privateKey.pkcs8 = keyPair.privateKey
+                    ? btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.exportKey("pkcs8", keyPair.privateKey))))
+                    : null;
+            } catch (e) {
+                console.warn("Private key does not support 'pkcs8' export:", e);
+            }
+
+            try {
+                exportedKey.privateKey.jwk = keyPair.privateKey
+                    ? await crypto.subtle.exportKey("jwk", keyPair.privateKey)
+                    : null;
+            } catch (e) {
+                console.warn("Private key does not support 'jwk' export:", e);
+            }
+
+            return exportedKey;
+        }
+
+        window.onload = async () => {
+            for (const config of keyConfigs) {
+                await generateAndDisplayKeys(config);
+            }
+
+            const password = await crypto.getRandomValues(new Uint8Array(8));
+            // Password in base64
+            const passwordBase64 = btoa(String.fromCharCode(...password));
+            const salt = await crypto.getRandomValues(new Uint8Array(16));
+            // Salt in base64
+            const saltBase64 = btoa(String.fromCharCode(...salt));
+            console.log("Password:", passwordBase64);
+            console.log("Salt in base64:", saltBase64);
+
+
+            const key = await crypto.subtle.importKey(
+                "raw",
+                password,
+                { name: "PBKDF2" },
+                false,
+                ["deriveKey", "deriveBits"]
+            );
+
+            const derivedKey = await crypto.subtle.deriveKey(
+                {
+                    name: "PBKDF2",
+                    salt,
+                    iterations: 100000,
+                    hash: "SHA-256"
+                },
+                key,
+                { name: "AES-GCM", length: 256 },
+                true,
+                ["encrypt", "decrypt"]
+            );
+
+            const exportedDerivedKeyJwk= await crypto.subtle.exportKey("jwk", derivedKey);
+            const exportedDerivedKeyRaw= await crypto.subtle.exportKey("raw", derivedKey);
+            
+            const keyhkdf = await crypto.subtle.importKey(
+                "raw",
+                password,
+                { name: "HKDF" },
+                false,
+                ["deriveKey", "deriveBits"]
+            );
+
+            const derivedKeyhkdf = await crypto.subtle.deriveKey(
+                {
+                    name: "HKDF",
+                    salt,
+                    info: new TextEncoder().encode("Encryption example"),
+                    hash: "SHA-256"
+                },
+                key,
+                { name: "AES-GCM", length: 256 },
+                true,
+                ["encrypt", "decrypt"]
+            );
+
+            const exportedDerivedKeyhkdfJwk= await crypto.subtle.exportKey("jwk", derivedKey);
+            const exportedDerivedKeyhkdfRaw= await crypto.subtle.exportKey("raw", derivedKey);
+
+            const keyDerivationContainer = document.getElementById("keyDerivation");
+            keyDerivationContainer.innerHTML = `
+                <h2>Key Derivation</h2>
+                <label>Password (Base64):</label><br>
+                <textarea rows="5" cols="150" readonly>${passwordBase64}</textarea><br>
+                <label>Salt (Base64):</label><br>
+                <textarea rows="5" cols="150" readonly>${saltBase64}</textarea><br>
+
+                <h3>PBKDF2</h3>
+                
+                <label>Derived Key (JWK):</label><br>
+                <textarea rows="5" cols="150" readonly>${JSON.stringify(exportedDerivedKeyJwk, null, 2)}</textarea><br>
+                <label>Derived Key (Raw Base64):</label><br>
+                <textarea rows="5" cols="150" readonly>${btoa(String.fromCharCode(...new Uint8Array(exportedDerivedKeyRaw)))}</textarea><br>
+                
+                <h3>HKDF</h3>
+                <label>Derived Key (JWK):</label><br>
+                <textarea rows="5" cols="150" readonly>${JSON.stringify(exportedDerivedKeyhkdfJwk, null, 2)}</textarea><br>
+                <label>Derived Key (Raw Base64):</label><br>
+                <textarea rows="5" cols="150" readonly>${btoa(String.fromCharCode(...new Uint8Array(exportedDerivedKeyhkdfRaw)))}</textarea><br>         
+                `;
+
+
+        };
+    </script>
+</body>
+</html>
